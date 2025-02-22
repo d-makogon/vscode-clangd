@@ -11,6 +11,11 @@ import * as mocks from './mocks';
 class MockClangdContext implements ClangdContext {
   subscriptions: vscode.Disposable[] = [];
   client = new vscodelc.LanguageClient('', {command: ''}, {});
+  suggestionFrequency: Map<string, number> = new Map();
+  globalState = {} as vscode.Memento;
+
+  loadSuggestionFrequency() {}
+  saveSuggestionFrequency() {}
 
   visibleClangdEditors: vscode.TextEditor[] = [];
 

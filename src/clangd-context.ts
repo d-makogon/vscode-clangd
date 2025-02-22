@@ -59,8 +59,8 @@ class EnableEditsNearCursorFeature implements vscodelc.StaticFeature {
 export class ClangdContext implements vscode.Disposable {
   subscriptions: vscode.Disposable[];
   client: ClangdLanguageClient;
-  private suggestionFrequency: Map<string, number> = new Map();
-  private globalState: vscode.Memento;
+  suggestionFrequency: Map<string, number> = new Map();
+  globalState: vscode.Memento;
 
   static async create(globalStoragePath: string,
                       outputChannel: vscode.OutputChannel,
@@ -176,8 +176,10 @@ export class ClangdContext implements vscode.Disposable {
             };
 
             // Set sortText based on frequency
-            const frequency = this.suggestionFrequency.get(item.label.label + item.label.detail) || 0;
-            item.sortText = String(9999 - frequency).padStart(4, '0');
+            const frequency = this.suggestionFrequency.get(
+              typeof item.label === 'string' ? item.label : item.label.label + item.label.detail
+            ) || 0;
+            item.sortText = ('0000' + String(9999 - frequency)).slice(-4);
 
             return item;
           })
@@ -237,20 +239,20 @@ export class ClangdContext implements vscode.Disposable {
     switchSourceHeader.activate(this);
     configFileWatcher.activate(this);
 
-    vscode.commands.registerCommand('extension.updateSuggestionFrequency', (label: string) => {
-      const key = label.label + label.detail;
+    vscode.commands.registerCommand('extension.updateSuggestionFrequency', (label) => {
+      const key = typeof label === 'string' ? label : label.label + label.detail;
       const currentFrequency = this.suggestionFrequency.get(key) || 0;
       this.suggestionFrequency.set(key, currentFrequency + 1);
       this.saveSuggestionFrequency();
     });
   }
 
-  private loadSuggestionFrequency() {
+  loadSuggestionFrequency() {
     const storedFrequency = this.globalState.get<Map<string, number>>('suggestionFrequency', new Map());
     this.suggestionFrequency = new Map(storedFrequency);
   }
 
-  private saveSuggestionFrequency() {
+  saveSuggestionFrequency() {
     this.globalState.update('suggestionFrequency', Array.from(this.suggestionFrequency.entries()));
   }
 
