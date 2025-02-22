@@ -59,6 +59,7 @@ class EnableEditsNearCursorFeature implements vscodelc.StaticFeature {
 export class ClangdContext implements vscode.Disposable {
   subscriptions: vscode.Disposable[];
   client: ClangdLanguageClient;
+  private suggestionFrequency: Map<string, number> = new Map();
 
   static async create(globalStoragePath: string,
                       outputChannel: vscode.OutputChannel):
@@ -134,12 +135,13 @@ export class ClangdContext implements vscode.Disposable {
           if (!config.get<boolean>('serverCompletionRanking'))
             return list;
           let items = (!list ? [] : Array.isArray(list) ? list : list.items);
+
           items = items.map(item => {
             // Gets the prefix used by VSCode when doing fuzzymatch.
             let prefix = document.getText(
                 new vscode.Range((item.range as vscode.Range).start, position))
             if (prefix)
-            item.filterText = prefix + '_' + item.filterText;
+              item.filterText = prefix + '_' + item.filterText;
             // Workaround for https://github.com/clangd/vscode-clangd/issues/357
             // clangd's used of commit-characters was well-intentioned, but
             // overall UX is poor. Due to vscode-languageclient bugs, we didn't
@@ -160,6 +162,18 @@ export class ClangdContext implements vscode.Disposable {
                 title: 'Signature help',
                 command: 'editor.action.triggerParameterHints'
               };
+
+            // Update frequency when a suggestion is picked
+            item.command = {
+              title: 'Update suggestion frequency',
+              command: 'extension.updateSuggestionFrequency',
+              arguments: [item.label]
+            };
+
+            // Set sortText based on frequency
+            const frequency = this.suggestionFrequency.get(item.label.label + item.label.detail) || 0;
+            item.sortText = String(9999 - frequency).padStart(4, '0');
+
             return item;
           })
           return new vscode.CompletionList(items, /*isIncomplete=*/ true);
@@ -217,6 +231,12 @@ export class ClangdContext implements vscode.Disposable {
     fileStatus.activate(this);
     switchSourceHeader.activate(this);
     configFileWatcher.activate(this);
+
+    vscode.commands.registerCommand('extension.updateSuggestionFrequency', (label) => {
+      const key = label.label + label.detail;
+      const currentFrequency = this.suggestionFrequency.get(key) || 0;
+      this.suggestionFrequency.set(key, currentFrequency + 1);
+    });
   }
 
   get visibleClangdEditors(): vscode.TextEditor[] {
