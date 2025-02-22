@@ -60,9 +60,11 @@ export class ClangdContext implements vscode.Disposable {
   subscriptions: vscode.Disposable[];
   client: ClangdLanguageClient;
   private suggestionFrequency: Map<string, number> = new Map();
+  private globalState: vscode.Memento;
 
   static async create(globalStoragePath: string,
-                      outputChannel: vscode.OutputChannel):
+                      outputChannel: vscode.OutputChannel,
+                      globalState: vscode.Memento):
       Promise<ClangdContext|null> {
     const subscriptions: vscode.Disposable[] = [];
     const clangdPath = await install.activate(subscriptions, globalStoragePath);
@@ -71,12 +73,15 @@ export class ClangdContext implements vscode.Disposable {
       return null;
     }
 
-    return new ClangdContext(subscriptions, clangdPath, outputChannel);
+    const context = new ClangdContext(subscriptions, clangdPath, outputChannel, globalState);
+    context.loadSuggestionFrequency();
+    return context;
   }
 
   private constructor(subscriptions: vscode.Disposable[], clangdPath: string,
-                      outputChannel: vscode.OutputChannel) {
+                      outputChannel: vscode.OutputChannel, globalState: vscode.Memento) {
     this.subscriptions = subscriptions;
+    this.globalState = globalState;
     const useScriptAsExecutable = config.get<boolean>('useScriptAsExecutable');
     let clangdArguments = config.get<string[]>('arguments');
     if (useScriptAsExecutable) {
@@ -232,11 +237,21 @@ export class ClangdContext implements vscode.Disposable {
     switchSourceHeader.activate(this);
     configFileWatcher.activate(this);
 
-    vscode.commands.registerCommand('extension.updateSuggestionFrequency', (label) => {
+    vscode.commands.registerCommand('extension.updateSuggestionFrequency', (label: string) => {
       const key = label.label + label.detail;
       const currentFrequency = this.suggestionFrequency.get(key) || 0;
       this.suggestionFrequency.set(key, currentFrequency + 1);
+      this.saveSuggestionFrequency();
     });
+  }
+
+  private loadSuggestionFrequency() {
+    const storedFrequency = this.globalState.get<Map<string, number>>('suggestionFrequency', new Map());
+    this.suggestionFrequency = new Map(storedFrequency);
+  }
+
+  private saveSuggestionFrequency() {
+    this.globalState.update('suggestionFrequency', Array.from(this.suggestionFrequency.entries()));
   }
 
   get visibleClangdEditors(): vscode.TextEditor[] {
@@ -249,6 +264,7 @@ export class ClangdContext implements vscode.Disposable {
   }
 
   dispose() {
+    this.saveSuggestionFrequency();
     this.subscriptions.forEach((d) => { d.dispose(); });
     if (this.client)
       this.client.stop();

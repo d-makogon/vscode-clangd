@@ -36,7 +36,7 @@ export async function activate(context: vscode.ExtensionContext):
         if (clangdContext)
           clangdContext.dispose();
         clangdContext = await ClangdContext.create(context.globalStoragePath,
-                                                   outputChannel);
+                                                   outputChannel, context.globalState);
         if (clangdContext)
           context.subscriptions.push(clangdContext);
         if (apiInstance) {
@@ -48,7 +48,7 @@ export async function activate(context: vscode.ExtensionContext):
 
   if (vscode.workspace.getConfiguration('clangd').get<boolean>('enable')) {
     clangdContext =
-        await ClangdContext.create(context.globalStoragePath, outputChannel);
+        await ClangdContext.create(context.globalStoragePath, outputChannel, context.globalState);
     if (clangdContext)
       context.subscriptions.push(clangdContext);
 
